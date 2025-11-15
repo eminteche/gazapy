@@ -139,24 +139,35 @@ export default function App() {
   }, [handleOnStop]);
 
   // On Press Start (Touch or Mouse)
+  type PointerEventLike = MouseEvent | TouchEvent | React.MouseEvent | React.TouchEvent;
+
+  const getClientY = (event: PointerEventLike) => {
+    const nativeEvent = 'nativeEvent' in event ? event.nativeEvent : event;
+    if ('touches' in nativeEvent && nativeEvent.touches.length > 0) {
+      return nativeEvent.touches[0].clientY;
+    }
+    if ('changedTouches' in nativeEvent && nativeEvent.changedTouches.length > 0) {
+      return nativeEvent.changedTouches[0].clientY;
+    }
+    return (nativeEvent as MouseEvent).clientY;
+  };
+
   const handlePressStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
+    if ('preventDefault' in e) e.preventDefault();
     setIsCancelled(false);
     
-    const y = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    startY.current = y;
+    startY.current = getClientY(e);
     
     startRecording();
   }, [startRecording]);
 
   // On Move (Touch or Mouse)
-  const handleMove = useCallback((e: MouseEvent | TouchEvent) => {
+  const handleMove = useCallback((event: PointerEventLike) => {
     if (!isRecording) return;
     
-    // Prevent scrolling on mobile
-    if (e instanceof TouchEvent) e.preventDefault();
+    if ('preventDefault' in event) event.preventDefault();
 
-    const currentY = e instanceof TouchEvent ? e.touches[0].clientY : e.clientY;
+    const currentY = getClientY(event);
     const deltaY = (startY.current || 0) - currentY;
     
     // Check if user slid up more than 60px
@@ -173,7 +184,10 @@ export default function App() {
   }, [isRecording, isCancelled]);
 
   // On Press End (Touch or Mouse)
-  const handlePressEnd = useCallback(() => {
+  const handlePressEnd = useCallback((event?: PointerEventLike) => {
+    if (event && 'preventDefault' in event) {
+      event.preventDefault();
+    }
     if (!isRecording) return;
     
     stopRecording();
@@ -186,22 +200,40 @@ export default function App() {
     setIsCancelled(false);
   }, [isRecording, isCancelled, stopRecording]);
 
+  const handlePressEndFromButton = useCallback(
+    (event: React.MouseEvent | React.TouchEvent) => {
+      handlePressEnd(event);
+    },
+    [handlePressEnd]
+  );
+
+  const handleMoveFromButton = useCallback(
+    (event: React.MouseEvent | React.TouchEvent) => {
+      handleMove(event);
+    },
+    [handleMove]
+  );
+
   // Global event listeners
   useEffect(() => {
     if (!isRecording) return;
 
     window.addEventListener('mousemove', handleMove);
-    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('touchmove', handleMove as any, { passive: false });
     window.addEventListener('mouseup', handlePressEnd);
     window.addEventListener('touchend', handlePressEnd);
 
     return () => {
       window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('touchmove', handleMove as any);
       window.removeEventListener('mouseup', handlePressEnd);
       window.removeEventListener('touchend', handlePressEnd);
     };
   }, [isRecording, handleMove, handlePressEnd]);
+
+  const recordingHint = isRecording
+    ? (isCancelled ? 'Slide down to resume or release to cancel.' : 'Release to send. Slide up to cancel.')
+    : 'Tap and hold to talk.';
 
   return (
     <div className="fixed inset-0 h-full w-full overflow-hidden flex flex-col items-center p-6 font-inter bg-gradient-to-br from-rose-700 via-purple-800 to-fuchsia-900 text-white select-none">
@@ -225,10 +257,15 @@ export default function App() {
           isRecording={isRecording}
           isCancelled={isCancelled}
           onPressStart={handlePressStart}
+          onPressEnd={handlePressEndFromButton}
+          onPressMove={handleMoveFromButton}
           rippleControls={rippleControls}
         />
-        <p className="text-xs text-white/50 mt-4 text-center max-w-xs">
-          Audio is processed by OpenAI. Tap and hold to speak.
+        <p className="text-sm text-white/80 mt-4 text-center max-w-xs transition-all duration-200">
+          {recordingHint}
+        </p>
+        <p className="text-xs text-white/50 mt-2 text-center max-w-xs">
+          Audio is processed securely by OpenAI. Tap and hold to speak.
         </p>
       </footer>
     </div>

@@ -8,6 +8,8 @@ interface MicButtonProps {
   isRecording: boolean;
   isCancelled: boolean;
   onPressStart: (e: React.MouseEvent | React.TouchEvent) => void;
+  onPressEnd: (e: React.MouseEvent | React.TouchEvent) => void;
+  onPressMove: (e: React.MouseEvent | React.TouchEvent) => void;
   rippleControls: AnimationControls;
 }
 
@@ -35,8 +37,15 @@ export const MicButton: React.FC<MicButtonProps> = ({
   return (
     <motion.div
       className="relative w-24 h-24"
+      style={{ touchAction: 'none' }}
       onMouseDown={onPressStart}
       onTouchStart={onPressStart}
+      onMouseUp={onPressEnd}
+      onTouchEnd={onPressEnd}
+      onMouseLeave={(e) => isRecording && onPressEnd(e)}
+      onTouchCancel={onPressEnd}
+      onMouseMove={(e) => isRecording && onPressMove(e)}
+      onTouchMove={onPressMove}
     >
       {/* Ripple Effect */}
       <motion.div
