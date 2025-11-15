@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import formidable from 'formidable';
-import fs from 'fs';
-import FormData from 'form-data';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,16 +30,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Convert File to Buffer
-    const bytes = await audioFile.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Create form data for OpenAI
+    // Create form data for OpenAI using native FormData
     const openaiFormData = new FormData();
-    openaiFormData.append('file', buffer, {
-      filename: 'audio.webm',
-      contentType: audioFile.type || 'audio/webm',
-    });
+    openaiFormData.append('file', audioFile, audioFile.name || 'audio.webm');
     openaiFormData.append('model', 'whisper-1');
     openaiFormData.append('language', 'ar'); // Arabic language hint
 
@@ -53,9 +43,8 @@ export async function POST(req: NextRequest) {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
-          ...openaiFormData.getHeaders(),
         },
-        body: openaiFormData as any,
+        body: openaiFormData,
       }
     );
 
