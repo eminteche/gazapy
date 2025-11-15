@@ -17,6 +17,8 @@ export const MicButton: React.FC<MicButtonProps> = ({
   isRecording, 
   isCancelled, 
   onPressStart,
+  onPressEnd,
+  onPressMove,
   rippleControls
 }) => {
   const idleGlow = {
