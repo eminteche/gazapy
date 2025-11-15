@@ -23,7 +23,6 @@ export async function POST() {
         model: 'gpt-4o-realtime-preview-2024-12-17',
         voice: 'alloy',
         modalities: ['text', 'audio'],
-        response_format: { type: 'text' },
       }),
     });
 
