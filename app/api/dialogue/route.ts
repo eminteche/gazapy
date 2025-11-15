@@ -47,8 +47,10 @@ export async function POST(req: NextRequest) {
 
     // Clean up old sessions (keep last 100)
     if (sessionStates.size > 100) {
-      const firstKey = sessionStates.keys().next().value;
-      sessionStates.delete(firstKey);
+      const iterator = sessionStates.keys().next();
+      if (!iterator.done && iterator.value) {
+        sessionStates.delete(iterator.value);
+      }
     }
 
     return NextResponse.json({
