@@ -175,6 +175,7 @@ export default function App() {
           headers: {
             Authorization: `Bearer ${session.client_secret?.value}`,
             'Content-Type': 'application/sdp',
+            'OpenAI-Beta': 'realtime=v1',
           },
           body: offer.sdp ?? '',
         }
