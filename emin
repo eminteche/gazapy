@@ -1,0 +1,378 @@
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { motion, AnimatePresence, useAnimation } from 'framer-motion';
+import { Mic, ShieldCheck, CornerLeftUp } from 'lucide-react'; // Added CornerLeftUp for cancel icon
+
+// --- TopBar Component ---
+const TopBar = () => (
+  <header className="absolute top-0 left-0 right-0 z-10 w-full p-6 flex justify-between items-center">
+    {/* GazaPay Logo Placeholder */}
+    <span className="font-bold text-2xl text-white/90" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+      GazaPay
+    </span>
+    <ShieldCheck className="w-7 h-7 text-white/90" style={{ filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.2))' }} />
+  </header>
+);
+
+// --- GlassCard Component (for status text) ---
+const GlassCard = ({ statusText, isRecording, isCancelled }) => {
+  const cardVariants = {
+    idle: {
+      boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+      scale: 1,
+    },
+    recording: {
+      scale: 1.03,
+      boxShadow: '0 0 40px 0 rgba(255, 255, 255, 0.3)',
+      transition: {
+        type: 'spring',
+        stiffness: 300,
+        damping: 20,
+        repeat: Infinity,
+        repeatType: 'reverse',
+        duration: 1.2,
+      },
+    },
+  };
+
+  const textKey = isCancelled ? 'cancel' : statusText;
+
+  return (
+    <motion.div
+      className="w-full max-w-md h-40 flex flex-col items-center justify-center rounded-3xl bg-white/10 backdrop-blur-2xl border border-white/20 shadow-lg p-6"
+      variants={cardVariants}
+      animate={isRecording && !isCancelled ? 'recording' : 'idle'}
+    >
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={textKey}
+          className="flex items-center justify-center"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+        >
+          {isCancelled ? (
+            <motion.div
+              className="flex flex-col items-center text-center"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+            >
+              <CornerLeftUp className="w-8 h-8 text-white/90 mb-2" />
+              <p className="text-xl font-medium text-white/90">Release to cancel</p>
+            </motion.div>
+          ) : (
+            <p className="text-2xl font-medium text-white text-center">
+              {statusText}
+            </p>
+          )}
+        </motion.div>
+      </AnimatePresence>
+    </motion.div>
+  );
+};
+
+// --- AIResponse Component ---
+const AIResponse = ({ response }) => {
+  return (
+    <div className="w-full max-w-md h-24 flex items-center justify-center mt-4">
+      <AnimatePresence>
+        {response && (
+          <motion.p
+            className="text-lg text-white/80 text-center"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+          >
+            {response}
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// --- MicButton Component ---
+const MicButton = ({ isRecording, isCancelled, onPressStart }) => {
+  const rippleControls = useAnimation();
+
+  // This effect will be triggered from the parent
+  const playRipple = () => {
+    rippleControls.start({
+      scale: [0.9, 2.5],
+      opacity: [1, 0],
+      transition: { duration: 0.6, ease: 'easeOut' },
+    });
+    // Reset for next play
+    rippleControls.set({ opacity: 0, scale: 0.9 });
+  };
+
+  // Expose playRipple to parent via a ref or prop-callback if needed
+  // For this demo, we'll trigger it via a prop change.
+  // A simpler way: just pass the controls up or use a key.
+  // Let's pass the controls via a ref.
+  // --- Simpler: We'll use useAnimation() in the parent and pass controls down.
+
+  const idleGlow = {
+    scale: [1, 1.15, 1],
+    opacity: [0.2, 0.4, 0.2],
+  };
+  
+  const recordingGlow = {
+    scale: 1.3,
+    opacity: 0.7,
+  };
+  
+  const cancelledGlow = {
+    scale: 1.1,
+    opacity: 0.3,
+  };
+
+  return (
+    <motion.div
+      className="relative w-24 h-24"
+      // This is the hold-to-talk button
+      onMouseDown={onPressStart}
+      onTouchStart={onPressStart}
+    >
+      {/* Ripple Effect */}
+      <motion.div
+        className="absolute inset-0 rounded-full border-2 border-white/70"
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={rippleControls}
+      />
+      
+      {/* Breathing/Recording Glow */}
+      <motion.div
+        className="absolute inset-0 rounded-full bg-white/30"
+        animate={isCancelled ? cancelledGlow : (isRecording ? recordingGlow : idleGlow)}
+        transition={isRecording ? 
+          { type: 'spring', stiffness: 400, damping: 30 } : 
+          { duration: 2.5, repeat: Infinity, ease: 'easeInOut' }
+        }
+      />
+      
+      {/* Main Mic Button Visual */}
+      <motion.div
+        className="absolute inset-2 rounded-full bg-gradient-to-br from-white/30 to-white/10 flex items-center justify-center cursor-pointer shadow-xl"
+        animate={{ scale: isRecording ? 1.06 : 1 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+      >
+        <Mic className="w-9 h-9 text-white" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' }} />
+      </motion.div>
+    </motion.div>
+  );
+};
+
+// --- Main App Component ---
+export default function App() {
+  const [statusText, setStatusText] = useState("Hold to talk");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
+  const [aiResponse, setAiResponse] =useState("");
+  const [isCancelled, setIsCancelled] = useState(false);
+
+  const mediaRecorder = useRef(null);
+  const audioChunks = useRef([]);
+  const startY = useRef(null);
+  
+  const rippleControls = useAnimation(); // Animation controls for the ripple
+
+  // --- 1. Placeholder AI Function ---
+  const processAudio = useCallback(async (audioBlob) => {
+    // Simulate AI thinking time
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Reset states
+    setIsThinking(false);
+    setStatusText("Hold to talk");
+    setAiResponse("This is a simulated AI response. The hold-to-talk interaction feels smooth, and the 'slide to cancel' feature works as expected.");
+    
+    // Clear response after a few seconds
+    setTimeout(() => setAiResponse(""), 5000);
+  }, []);
+
+  // --- 2. Stop Recording ---
+  // This is called on mouse/touch release
+  const stopRecording = useCallback(() => {
+    if (mediaRecorder.current && mediaRecorder.current.state === "recording") {
+      mediaRecorder.current.stop(); // This triggers the 'onstop' event
+    }
+    setIsRecording(false);
+  }, []);
+
+  // --- 3. MediaRecorder 'onstop' Event Handler ---
+  // This is where we process the audio *after* recording stops
+  const handleOnStop = useCallback(() => {
+    if (isCancelled) {
+      // If cancelled, just reset
+      setStatusText("Hold to talk");
+    } else {
+      // If not cancelled, process the audio
+      const audioBlob = new Blob(audioChunks.current, { type: 'audio/wav' });
+      setIsThinking(true);
+      setStatusText("Thinking...");
+      
+      // Trigger the ripple animation
+      rippleControls.start({
+        scale: [0.9, 2.5],
+        opacity: [1, 0],
+        transition: { duration: 0.6, ease: 'easeOut' },
+      });
+      // Reset ripple visual for next play
+      rippleControls.set({ opacity: 0, scale: 0.9 });
+
+      processAudio(audioBlob);
+    }
+    
+    // Clear chunks and reset cancel state
+    audioChunks.current = [];
+    setIsCancelled(false);
+    startY.current = null;
+    
+  }, [isCancelled, processAudio, rippleControls]);
+
+  // --- 4. Start Recording ---
+  // This is called on mouse/touch press
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder.current = new MediaRecorder(stream);
+      
+      // Clear previous chunks
+      audioChunks.current = [];
+
+      // Add data to chunks array when available
+      mediaRecorder.current.ondataavailable = (e) => {
+        audioChunks.current.push(e.data);
+      };
+
+      // Set the onstop event handler
+      mediaRecorder.current.onstop = handleOnStop;
+      
+      // Start recording
+      mediaRecorder.current.start();
+      
+      // Update UI state
+      setIsRecording(true);
+      setIsThinking(false);
+      setAiResponse("");
+      setStatusText("Listening...");
+
+    } catch (err) {
+      console.error("Error starting recording:", err);
+      setStatusText("Mic access denied");
+    }
+  }, [handleOnStop]);
+
+
+  // --- 5. Event Handlers for Hold-to-Talk ---
+
+  // On Press Start (Touch or Mouse)
+  const handlePressStart = useCallback((e) => {
+    e.preventDefault();
+    setIsCancelled(false);
+    
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    startY.current = y;
+    
+    startRecording();
+  }, [startRecording]);
+
+  // On Move (Touch or Mouse)
+  const handleMove = useCallback((e) => {
+    if (!isRecording) return;
+    
+    // Prevent scrolling on mobile
+    if (e.touches) e.preventDefault();
+
+    const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+    const deltaY = startY.current - currentY;
+    
+    // Check if user slid up more than 60px
+    if (deltaY > 60) {
+      if (!isCancelled) {
+        setIsCancelled(true);
+      }
+    } else {
+      // Allow sliding back down to un-cancel
+      if (isCancelled) {
+        setIsCancelled(false);
+      }
+    }
+  }, [isRecording, isCancelled, startY]);
+
+  // On Press End (Touch or Mouse)
+  const handlePressEnd = useCallback((e) => {
+    if (!isRecording) return;
+    
+    stopRecording(); // This will trigger the onstop handler
+    
+    if (isCancelled) {
+      setStatusText("Hold to talk");
+    }
+    
+    // Reset state
+    startY.current = null;
+    setIsCancelled(false);
+    
+  }, [isRecording, isCancelled, stopRecording]);
+
+  // --- 6. Global Event Listeners ---
+  // We add global listeners when recording starts
+  // to catch "release" and "move" events anywhere on the screen.
+  useEffect(() => {
+    if (!isRecording) return;
+
+    // Use event handlers in a way that doesn't capture `isCancelled` stale closure
+    const moveHandler = (e) => handleMove(e);
+    const endHandler = (e) => handlePressEnd(e);
+
+    // Add listeners
+    window.addEventListener('mousemove', moveHandler);
+    window.addEventListener('touchmove', moveHandler, { passive: false }); // passive:false to allow preventDefault
+    window.addEventListener('mouseup', endHandler);
+    window.addEventListener('touchend', endHandler);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('mousemove', moveHandler);
+      window.removeEventListener('touchmove', moveHandler);
+      window.removeEventListener('mouseup', endHandler);
+      window.removeEventListener('touchend', endHandler);
+    };
+  }, [isRecording, handleMove, handlePressEnd]);
+
+
+  // --- JSX Render ---
+  return (
+    // Main container with gradient and vignette
+    <div className="fixed inset-0 h-full w-full overflow-hidden flex flex-col items-center p-6 font-inter bg-gradient-to-br from-rose-700 via-purple-800 to-fuchsia-900 text-white select-none">
+      
+      {/* Vignette Overlay */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_transparent_50%,_black_120%)] opacity-40 z-0" />
+      
+      <TopBar />
+      
+      <main className="flex-1 flex flex-col items-center justify-center w-full z-10 -mt-12">
+        <GlassCard 
+          statusText={statusText} 
+          isRecording={isRecording}
+          isCancelled={isCancelled} 
+        />
+        <AIResponse response={aiResponse} />
+      </main>
+      
+      <footer className="w-full flex justify-center pb-8 pt-4 z-10">
+        <MicButton
+          isRecording={isRecording}
+          isCancelled={isCancelled}
+          onPressStart={handlePressStart}
+          // Pass the controls for the ripple
+          ref={{ playRipple: () => rippleControls.start({ /*... animation ...*/ }) }}
+        />
+      </footer>
+    </div>
+  );
+}2
