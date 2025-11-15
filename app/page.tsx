@@ -140,52 +140,58 @@ export default function App() {
 
   const initializeRealtimeConnection = useCallback(async () => {
     transcriptBufferRef.current = "";
-    const sessionRes = await fetch('/api/realtime', { method: 'POST' });
-    if (!sessionRes.ok) {
-      throw new Error('Failed to create realtime session');
-    }
-    const session = await sessionRes.json();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      localStreamRef.current = stream;
 
-    const pc = new RTCPeerConnection();
-    peerRef.current = pc;
-
-    pc.ontrack = (event) => {
-      if (realtimeAudioRef.current) {
-        realtimeAudioRef.current.srcObject = event.streams[0];
+      const sessionRes = await fetch('/api/realtime', { method: 'POST' });
+      if (!sessionRes.ok) {
+        throw new Error('Failed to create realtime session');
       }
-    };
+      const session = await sessionRes.json();
 
-    const dc = pc.createDataChannel('oai-events');
-    dc.onmessage = handleRealtimeMessage;
-    dataChannelRef.current = dc;
+      const pc = new RTCPeerConnection();
+      peerRef.current = pc;
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    localStreamRef.current = stream;
-    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      pc.ontrack = (event) => {
+        if (realtimeAudioRef.current) {
+          realtimeAudioRef.current.srcObject = event.streams[0];
+        }
+      };
 
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
+      const dc = pc.createDataChannel('oai-events');
+      dc.onmessage = handleRealtimeMessage;
+      dataChannelRef.current = dc;
 
-    const sdpResponse = await fetch(
-      `https://api.openai.com/v1/realtime?model=${encodeURIComponent('gpt-4o-realtime-preview-2024-12-17')}`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session.client_secret?.value}`,
-          'Content-Type': 'application/sdp',
-        },
-        body: offer.sdp ?? '',
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      const sdpResponse = await fetch(
+        `https://api.openai.com/v1/realtime?model=${encodeURIComponent('gpt-4o-realtime-preview-2024-12-17')}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.client_secret?.value}`,
+            'Content-Type': 'application/sdp',
+          },
+          body: offer.sdp ?? '',
+        }
+      );
+
+      if (!sdpResponse.ok) {
+        const errorText = await sdpResponse.text();
+        throw new Error(errorText || 'Realtime SDP exchange failed');
       }
-    );
 
-    if (!sdpResponse.ok) {
-      const errorText = await sdpResponse.text();
-      throw new Error(errorText || 'Realtime SDP exchange failed');
+      const answer = await sdpResponse.text();
+      await pc.setRemoteDescription({ type: 'answer', sdp: answer });
+    } catch (error) {
+      stopLocalStream();
+      throw error;
     }
-
-    const answer = await sdpResponse.text();
-    await pc.setRemoteDescription({ type: 'answer', sdp: answer });
-  }, [handleRealtimeMessage]);
+  }, [handleRealtimeMessage, stopLocalStream]);
 
   const requestRealtimeTranscription = useCallback(() => {
     if (!dataChannelRef.current || dataChannelRef.current.readyState !== 'open') {
