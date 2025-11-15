@@ -53,6 +53,35 @@ export async function sendToMauriAI(
   }
 }
 
+export async function sendTranscriptToMauriAI(
+  transcript: string,
+  sessionId: string
+): Promise<VoiceResponse> {
+  try {
+    const dialogueResult = await processDialogue(transcript, sessionId);
+
+    if (!dialogueResult.response) {
+      throw new Error('Dialogue processing failed');
+    }
+
+    let audioUrl: string | undefined;
+    try {
+      audioUrl = await generateTTS(dialogueResult.response);
+    } catch (ttsError) {
+      console.warn('TTS generation failed, continuing with text only:', ttsError);
+    }
+
+    return {
+      text: dialogueResult.response,
+      audioUrl,
+      intent: dialogueResult.intent,
+    };
+  } catch (error: any) {
+    console.error('Voice engine error:', error);
+    throw new Error(error.message || 'Voice processing failed');
+  }
+}
+
 /**
  * Step 1: Transcribe audio using OpenAI Whisper
  */

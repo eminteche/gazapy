@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     // Create form data for OpenAI using native FormData
     const openaiFormData = new FormData();
     openaiFormData.append('file', audioFile, audioFile.name || 'audio.webm');
-    openaiFormData.append('model', 'whisper-1');
+    openaiFormData.append('model', 'gpt-4o-mini-transcribe');
     openaiFormData.append('language', 'ar'); // Arabic language hint
 
     // Send to OpenAI
