@@ -14,6 +14,9 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [aiResponse, setAiResponse] = useState("");
+  const [ttsAudioUrl, setTtsAudioUrl] = useState("");
+  const [audioError, setAudioError] = useState("");
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [isCancelled, setIsCancelled] = useState(false);
   const [sessionId, setSessionId] = useState("");
 
@@ -48,28 +51,45 @@ export default function App() {
       });
       rippleControls.set({ opacity: 0, scale: 0.9 });
 
+      setAudioError("");
+
       // Send to AI and get response
       const result = await sendToMauriAI(audioBlob, sessionId);
       
       setIsThinking(false);
       setStatusText("Hold to talk");
       setAiResponse(result.text);
+      setTtsAudioUrl(result.audioUrl || "");
+      setIsAudioPlaying(false);
 
       // Play TTS audio if available
       if (result.audioUrl && audioElement.current) {
         audioElement.current.src = result.audioUrl;
-        audioElement.current.play().catch(err => {
-          console.error("Error playing audio:", err);
-        });
+        audioElement.current.play()
+          .then(() => {
+            setIsAudioPlaying(true);
+          })
+          .catch(err => {
+            console.error("Error playing audio:", err);
+            setAudioError("اضغط على زر التشغيل للاستماع إلى الرد الصوتي.");
+          });
+      } else {
+        setAudioError("الرد الصوتي غير متاح حالياً، تمت مشاركة النص فقط.");
       }
 
       // Clear response after 10 seconds
-      setTimeout(() => setAiResponse(""), 10000);
+      setTimeout(() => {
+        setAiResponse("");
+        setTtsAudioUrl("");
+        setIsAudioPlaying(false);
+      }, 10000);
 
     } catch (err: any) {
       console.error("Error processing audio:", err);
       setIsThinking(false);
       setStatusText("Hold to talk");
+      setTtsAudioUrl("");
+      setIsAudioPlaying(false);
       
       // Show user-friendly error messages
       if (err.message?.includes('network')) {
@@ -80,7 +100,11 @@ export default function App() {
         setAiResponse("Something went wrong. Please try again.");
       }
       
-      setTimeout(() => setAiResponse(""), 5000);
+      setAudioError("لم يتمكن النظام من تشغيل الرد الصوتي.");
+      setTimeout(() => {
+        setAiResponse("");
+        setAudioError("");
+      }, 5000);
     }
   }, [sessionId, rippleControls]);
 
@@ -235,6 +259,20 @@ export default function App() {
     ? (isCancelled ? 'Slide down to resume or release to cancel.' : 'Release to send. Slide up to cancel.')
     : 'Tap and hold to talk.';
 
+  const handleManualPlay = useCallback(() => {
+    if (!ttsAudioUrl || !audioElement.current) return;
+    audioElement.current.src = ttsAudioUrl;
+    audioElement.current.play()
+      .then(() => {
+        setIsAudioPlaying(true);
+        setAudioError("");
+      })
+      .catch((err) => {
+        console.error("Manual audio play failed:", err);
+        setAudioError("تعذر تشغيل الصوت. تأكد من رفع مستوى الصوت أو حاول مرة أخرى.");
+      });
+  }, [ttsAudioUrl]);
+
   return (
     <div className="fixed inset-0 h-full w-full overflow-hidden flex flex-col items-center p-6 font-inter bg-gradient-to-br from-rose-700 via-purple-800 to-fuchsia-900 text-white select-none">
       
@@ -250,6 +288,19 @@ export default function App() {
           isCancelled={isCancelled} 
         />
         <AIResponse response={aiResponse} />
+        {ttsAudioUrl && (
+          <button
+            onClick={handleManualPlay}
+            className="mt-2 px-5 py-2 rounded-full bg-white/20 hover:bg-white/30 text-white text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-white/60"
+          >
+            {isAudioPlaying ? 'يعاد تشغيل الرد الصوتي' : 'تشغيل الرد الصوتي'}
+          </button>
+        )}
+        {audioError && (
+          <p className="text-xs text-rose-100 mt-2 text-center max-w-xs">
+            {audioError}
+          </p>
+        )}
       </main>
       
       <footer className="w-full flex flex-col items-center pb-8 pt-4 z-10">
