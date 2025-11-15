@@ -29,6 +29,7 @@ export default function App() {
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const transcriptBufferRef = useRef<string>("");
+  const responseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const rippleControls = useAnimation();
 
@@ -58,6 +59,10 @@ export default function App() {
       audioElement.current = new Audio();
     }
     return () => {
+      if (responseTimeoutRef.current) {
+        clearTimeout(responseTimeoutRef.current);
+        responseTimeoutRef.current = null;
+      }
       cleanupRealtimeConnection();
     };
   }, [cleanupRealtimeConnection]);
@@ -125,6 +130,10 @@ export default function App() {
       } else if (payload.type === 'response.completed') {
         const transcript = transcriptBufferRef.current;
         transcriptBufferRef.current = "";
+        if (responseTimeoutRef.current) {
+          clearTimeout(responseTimeoutRef.current);
+          responseTimeoutRef.current = null;
+        }
         cleanupRealtimeConnection();
         processTranscriptText(transcript);
       } else if (payload.type === 'error' || payload.type === 'response.error') {
@@ -202,7 +211,6 @@ export default function App() {
       return;
     }
 
-    stopLocalStream();
     dataChannelRef.current.send(
       JSON.stringify({
         type: 'response.create',
@@ -212,11 +220,27 @@ export default function App() {
         },
       })
     );
+    setTimeout(() => stopLocalStream(), 250);
+
+    if (responseTimeoutRef.current) {
+      clearTimeout(responseTimeoutRef.current);
+    }
+    responseTimeoutRef.current = setTimeout(() => {
+      console.warn('Realtime response timeout');
+      cleanupRealtimeConnection();
+      setStatusText("Hold to talk");
+      setIsThinking(false);
+      setAiResponse("انقطع الاتصال قبل استلام الرد. حاول مرة أخرى.");
+    }, 12000);
   }, [cleanupRealtimeConnection, stopLocalStream]);
 
   const cancelRealtimeSession = useCallback(() => {
     if (dataChannelRef.current?.readyState === 'open') {
       dataChannelRef.current.send(JSON.stringify({ type: 'response.cancel' }));
+    }
+    if (responseTimeoutRef.current) {
+      clearTimeout(responseTimeoutRef.current);
+      responseTimeoutRef.current = null;
     }
     cleanupRealtimeConnection();
   }, [cleanupRealtimeConnection]);
